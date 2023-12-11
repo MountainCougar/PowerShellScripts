@@ -1,9 +1,11 @@
 #>This is a powershell script that give you a an .csv output for all user logins on specified machine/s
+#This is a template and all infomration will need to be added to specify the machine in question.
 
 Param(
-    [array]$ServersToQuery = @(#"ENTER MACHINE NAME HERE"),
-    [datetime]$starttime = (Get-Date).AddYears(-1)
+    [array]$ServersToQuery = @("ENTER MACHINE NAME HERE"), # Corrected syntax here
+    [datetime]$starttime = (Get-Date).AddYears(-1) 
 )
+
 
     foreach ($Server in $ServersToQuery) {
 
