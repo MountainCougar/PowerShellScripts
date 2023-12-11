@@ -1,48 +1,47 @@
-#>This is a powershell script that give you a an .csv output for all user logins on specified machine/s
-#This is a template and all infomration will need to be added to specify the machine in question.
-
 Param(
-    [array]$ServersToQuery = @("ENTER MACHINE NAME HERE"), # Corrected syntax here
+    [array]$ServersToQuery = @("ENTER MACHINE NAME HERE"),
     [datetime]$starttime = (Get-Date).AddYears(-1) 
 )
 
+[array]$Output = @() # Initialize $Output as an empty array
 
-    foreach ($Server in $ServersToQuery) {
-
-        $LogFilter = @{
-            LogName = 'Microsoft-Windows-TerminalServices-LocalSessionManager/Operational'
-            ID = 21, 23, 24, 25
-            StartTime = $StartTime
-            }
-
-        $AllEntries = Get-WinEvent -FilterHashtable $LogFilter -ComputerName $Server
-
-        $AllEntries | Foreach-Object{ 
-            $entry = [xml]$_.ToXml()
-            [array]$Output = New-Object PSObject -Property @{
-                TimeCreated = $_.TimeCreated
-                User = $entry.Event.UserData.EventXML.User
-                IPAddress = $entry.Event.UserData.EventXML.Address
-                EventID = $entry.Event.System.EventID
-                ServerName = $Server
-                }        
-            } 
-
+foreach ($Server in $ServersToQuery) {
+    $LogFilter = @{
+        LogName = 'Microsoft-Windows-TerminalServices-LocalSessionManager/Operational'
+        ID = 21, 23, 24, 25
+        StartTime = $StartTime
     }
 
-    $FilteredOutput += $Output | Select-Object TimeCreated, User, ServerName, IPAddress, @{Name='Action';Expression={
-                if ($_.EventID -eq '21'){"logon"}
-                if ($_.EventID -eq '22'){"Shell start"}
-                if ($_.EventID -eq '23'){"logoff"}
-                if ($_.EventID -eq '24'){"disconnected"}
-                if ($_.EventID -eq '25'){"reconnection"}
-                }
-            }
+    $AllEntries = Get-WinEvent -FilterHashtable $LogFilter -ComputerName $Server
 
-    $Date = (Get-Date -Format s) -replace ":", "."
-    $FilePath = "$env:USERPROFILE\Desktop\$Date`_RDP_Report.csv"
-    $FilteredOutput | Sort-Object TimeCreated | Export-Csv $FilePath -NoTypeInformation -Encoding utf8
+    foreach ($Entry in $AllEntries) {
+        $xmlEntry = [xml]$Entry.ToXml()
+        $obj = New-Object PSObject -Property @{
+            TimeCreated = $Entry.TimeCreated
+            User = $xmlEntry.Event.UserData.EventXML.User
+            IPAddress = $xmlEntry.Event.UserData.EventXML.Address
+            EventID = $xmlEntry.Event.System.EventID
+            ServerName = $Server
+        }
+        $Output += $obj
+    }
+}
+
+$FilteredOutput = $Output | Select-Object TimeCreated, User, ServerName, IPAddress, @{Name='Action'; Expression={
+        switch ($_.EventID) {
+            '21' {'logon'}
+            '22' {'Shell start'}
+            '23' {'logoff'}
+            '24' {'disconnected'}
+            '25' {'reconnection'}
+        }
+    }
+}
+
+$Date = (Get-Date -Format s) -replace ":", "."
+$FilePath = "$env:USERPROFILE\Desktop\$Date`_RDP_Report.csv"
+$FilteredOutput | Sort-Object TimeCreated | Export-Csv $FilePath -NoTypeInformation -Encoding utf8
 
 Write-host "Writing File: $FilePath" -ForegroundColor Cyan
-Write-host "Done!" -ForegroundColor Cyan 
-#
+Write-host "Done!" -ForegroundColor Cyan
+
